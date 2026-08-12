@@ -1,0 +1,17 @@
+# Local and CI build output
+AlmaLinux8.10-S905L3A-UNT403A/
+AlmaLinux8.10-S905L3A-UNT403A.zip
+AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
+*.tgz
+*.tar.gz
+*.zip
+*.img
+
+# Temporary build directories and logs
+.ophub-build.*
+*.log
+
+# Editors and OS files
+.DS_Store
+.vscode/
+.idea/

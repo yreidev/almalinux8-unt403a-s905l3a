@@ -1,0 +1,48 @@
+name: Build AlmaLinux 8.10 for UNT403A
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools zip unzip file
+
+      - name: Enable ARM64 emulation
+        run: docker run --privileged --rm tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
+
+      - name: Build image
+        run: ./build-almalinux8-unt403a.sh
+
+      - name: Package artifact
+        run: |
+          zip -qr -9 AlmaLinux8.10-S905L3A-UNT403A.zip AlmaLinux8.10-S905L3A-UNT403A
+          sha256sum AlmaLinux8.10-S905L3A-UNT403A.zip > AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlmaLinux8.10-S905L3A-UNT403A
+          path: |
+            AlmaLinux8.10-S905L3A-UNT403A.zip
+            AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
+          if-no-files-found: error
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            AlmaLinux8.10-S905L3A-UNT403A.zip
+            AlmaLinux8.10-S905L3A-UNT403A.zip.sha256

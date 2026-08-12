@@ -1,0 +1,52 @@
+AlmaLinux 8.10 / AArch64 / Amlogic S905L3A / UNT403A / Ophub 6.6.150
+
+默认登录
+用户名：root
+密码：admin
+
+本包使用 Ophub 6.6.150 内核、DTB、U-Boot 和启动文件。Ophub 为 S905L3A 版 UNT403A 指定的设备树为：
+/dtb/amlogic/meson-g12a-s905l3a-m401a.dtb
+请勿用于 S905L3B 版 UNT403A，也不要改成 CM311 DTB。
+
+rootfs 已预装 passwd、network-scripts 和 NetworkManager。有线网卡使用 /etc/sysconfig/network-scripts/ifcfg-eth0 通过 DHCP 自动获取地址。
+
+重要
+1. 这套旧写入方法只能使用 Armbian Bullseye。Jammy 会提示代码或命令错误。
+2. 先执行 lsblk -f，确认 eMMC 是 mmcblk1 还是 mmcblk2。下面的 mmcblk2 只是示例。
+3. 命令会删除 eMMC 的 boot 和 rootfs 内容。先备份 boot 分区、uEnv.txt、DTB 和重要数据。
+
+一、进入当前 eMMC Armbian，删除 boot 系统后关机：
+
+rm -rf /boot/*
+shutdown now
+
+二、插入原 Armbian Bullseye 烧录 U 盘并开机。
+
+把下面两个构建产物上传到 /root：
+AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz
+AlmaLinux-8.10-S905L3A-UNT403A-boot.zip
+
+三、按照旧 CentOS 方法写入（把 mmcblk2 换成实际 eMMC）：
+
+mount /dev/mmcblk2p2 /mnt
+mount /dev/mmcblk2p1 /mnt/boot
+rm -rf /mnt/*
+tar xvpfz /root/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz -C /mnt/
+cd /root
+unzip AlmaLinux-8.10-S905L3A-UNT403A-boot.zip
+cp -r boot /mnt
+sync
+shutdown now
+
+四、拔出 Armbian U 盘，从 eMMC 开机。
+
+首次启动后立即修改 root 密码：
+passwd root
+
+检查：
+cat /etc/almalinux-release
+uname -a
+lsblk -f
+ip addr show eth0
+
+如写入失败，请保留终端完整输出、lsblk -f、当前 uEnv.txt 和 TTL 串口日志。
