@@ -28,3 +28,12 @@ diff --git a/recompile b/recompile
  
      echo -e "${INFO} Injecting custom configs into Docker container..."
      [[ -d "${config_path}" ]] && docker cp ${config_path}/. "${docker_container}":/opt/kernel/compile-kernel/tools/config/
+@@ -179,7 +188,7 @@ configure_and_compile() {
+     docker exec -i "${docker_container}" ls -Alh /opt/kernel/compile-kernel/tools/patch/ || true
+ 
+     echo -e "${INFO} Compiling the kernel inside the Docker container..."
+-    docker exec -i "${docker_container}" bash "${docker_script}" "${@}"
++    docker exec -i -w /opt/kernel "${docker_container}" bash "${docker_script}" "${@}"
+ }
+ 
+ # Show welcome message
