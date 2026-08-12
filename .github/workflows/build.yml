@@ -40,9 +40,11 @@ jobs:
           if-no-files-found: error
 
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && format('AlmaLinux 8.10 UNT403A {0}', github.ref_name) || 'AlmaLinux 8.10 UNT403A latest' }}
           files: |
             AlmaLinux8.10-S905L3A-UNT403A.zip
             AlmaLinux8.10-S905L3A-UNT403A.zip.sha256

@@ -8,7 +8,7 @@ rootfs 预装 `passwd`、`network-scripts` 和 NetworkManager，`eth0` 默认通
 
 ## 构建
 
-推送到 `main`、推送 `v*` 标签，或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行。完成后在 workflow 的 Artifacts 下载：
+推送到 `main`、推送 `v*` 标签，或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行。构建完成后，`main` 和手动运行会更新 GitHub 的 `latest` Release，`v*` 标签会创建对应版本 Release；同时也会保留 workflow Artifacts：
 
 ```text
 AlmaLinux8.10-S905L3A-UNT403A.zip
