@@ -1,10 +1,10 @@
-AlmaLinux 8.10 / AArch64 / Amlogic S905L3A / UNT403A / Ophub 6.6.150
+AlmaLinux 8.10 / AArch64 / Amlogic S905L3A / UNT403A / Ophub 6.6.150-bbrplus
 
 默认登录
 用户名：root
 密码：admin
 
-本包使用 Ophub 6.6.150 内核、DTB、U-Boot 和启动文件。Ophub 为 S905L3A 版 UNT403A 指定的设备树为：
+本包使用固定源码构建的 Ophub 6.6.150-bbrplus 内核、DTB、U-Boot 和启动文件。内核包含注册名为 `bbrplus` 的 BBRPlus 和 FQ。Ophub 为 S905L3A 版 UNT403A 指定的设备树为：
 /dtb/amlogic/meson-g12a-s905l3a-m401a.dtb
 请勿用于 S905L3B 版 UNT403A，也不要改成 CM311 DTB。
 
@@ -48,5 +48,6 @@ cat /etc/almalinux-release
 uname -a
 lsblk -f
 ip addr show eth0
+sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc
 
 如写入失败，请保留终端完整输出、lsblk -f、当前 uEnv.txt 和 TTL 串口日志。

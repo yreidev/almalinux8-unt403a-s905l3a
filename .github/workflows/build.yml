@@ -11,16 +11,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y libarchive-tools zip unzip file
-
-      - name: Enable ARM64 emulation
-        run: docker run --privileged --rm tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools zip unzip file git curl patch
 
       - name: Build image
         run: ./build-almalinux8-unt403a.sh

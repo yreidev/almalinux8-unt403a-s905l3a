@@ -1,0 +1,30 @@
+diff --git a/recompile b/recompile
+--- a/recompile
++++ b/recompile
+@@ -37,6 +37,7 @@ docker_hostpath="${PWD}"
+ docker_image="ophub/armbian-trixie:arm64"
+ docker_container="armbian-ophub"
+ docker_script="/usr/sbin/armbian-kernel"
++ophub_script_source="${ALMA_OPHUB_SCRIPT_SOURCE:-}"
+ 
+ # Get host architecture and release info
+ arch_info="$(uname -m)"
+@@ -158,8 +159,16 @@ configure_and_compile() {
+         docker restart ${docker_container} >/dev/null && sleep 5
+     fi
+ 
+-    echo -e "${INFO} Syncing scripts in Docker container..."
+-    docker exec -i "${docker_container}" bash "${docker_script}" -u
++    if [[ -n "${ophub_script_source}" ]]; then
++        echo -e "${INFO} Installing pinned compilation scripts in Docker container..."
++        docker exec -i "${docker_container}" mkdir -p /opt/kernel/compile-kernel/tools/script
++        docker cp "${ophub_script_source}/armbian_compile_kernel.sh" "${docker_container}:${docker_script}"
++        docker cp "${ophub_script_source}/armbian-compile-kernel-depends" "${docker_container}:/opt/kernel/compile-kernel/tools/script/"
++        docker exec -i "${docker_container}" chmod +x "${docker_script}"
++    else
++        echo -e "${INFO} Syncing scripts in Docker container..."
++        docker exec -i "${docker_container}" bash "${docker_script}" -u
++    fi
+ 
+     echo -e "${INFO} Injecting custom configs into Docker container..."
+     [[ -d "${config_path}" ]] && docker cp ${config_path}/. "${docker_container}":/opt/kernel/compile-kernel/tools/config/

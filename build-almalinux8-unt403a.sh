@@ -4,7 +4,10 @@ set -Eeuo pipefail
 base_dir="$(cd "$(dirname "$0")" && pwd)"
 out_dir="$base_dir/AlmaLinux8.10-S905L3A-UNT403A"
 version="6.6.150"
-kernel_sha256="933b402760bbdc6d9ae0ed441131a11dbd6951f45e18c4cea59f0c9576cf45f8"
+kernel_variant="6.6.150-bbrplus"
+linux_commit="3c7c31e62162ab532313e24a3bfef881c9698796"
+linux_source_sha256="256378dc1e69361152dc0228ce9b684f2f695fa80f08c3c1be99647a5a23b9ff"
+patch_sha256="a0feb55ea5e502bc2b33bc880593943b169f56e3aeebd99703f5ff1104730d6f"
 amlogic_commit="33e3b6f6da0e2b3c1b3e64efd2467d880882446f"
 uboot_commit="a1d43b60f524cfa187bd91d95d6e54be8610d199"
 alma_digest="sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb"
@@ -15,11 +18,11 @@ tmp_dir="$(mktemp -d "$base_dir/.ophub-build.XXXXXX")"
 
 cleanup() {
     [[ -z "$container" ]] || docker rm -f "$container" >/dev/null 2>&1 || true
-    rm -rf "$tmp_dir"
+    sudo rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
 
-for command_name in awk bsdtar curl docker file git gzip sha256sum tar unzip zip; do
+for command_name in awk bsdtar curl docker file git gzip patch sha256sum sudo tar unzip zip; do
     command -v "$command_name" >/dev/null || { echo "缺少命令：$command_name" >&2; exit 1; }
 done
 
@@ -28,9 +31,11 @@ if ! docker run --rm --platform linux/arm64 "almalinux:8@$alma_digest" true >/de
 fi
 
 mkdir -p "$out_dir"
-kernel_tar="$tmp_dir/$version.tar.gz"
-curl -LfsS --retry 3 --retry-delay 2 "https://github.com/ophub/kernel/releases/download/kernel_stable/$version.tar.gz" -o "$kernel_tar"
-printf '%s  %s\n' "$kernel_sha256" "$kernel_tar" | sha256sum -c -
+linux_tar="$tmp_dir/linux-6.6.150.tar.gz"
+curl -LfsS --retry 3 --retry-delay 2 \
+    "https://codeload.github.com/ophub/linux-6.6.y/tar.gz/$linux_commit" \
+    -o "$linux_tar"
+printf '%s  %s\n' "$linux_source_sha256" "$linux_tar" | sha256sum -c -
 for source in amlogic u-boot; do
     case "$source" in
         amlogic) url=https://github.com/ophub/amlogic-s9xxx-armbian.git; commit="$amlogic_commit" ;;
@@ -41,12 +46,46 @@ for source in amlogic u-boot; do
     git -C "$tmp_dir/$source" checkout --detach "$commit"
 done
 
-mkdir -p "$tmp_dir/kernel" "$tmp_dir/boot-input" "$tmp_dir/dtb-input" "$tmp_dir/modules"
-tar -xzf "$kernel_tar" -C "$tmp_dir/kernel"
-(cd "$tmp_dir/kernel/$version" && sha256sum -c sha256sums)
-tar -xzf "$tmp_dir/kernel/$version/boot-$version-ophub.tar.gz" -C "$tmp_dir/boot-input"
-tar -xzf "$tmp_dir/kernel/$version/dtb-amlogic-$version-ophub.tar.gz" -C "$tmp_dir/dtb-input"
-tar -xzf "$tmp_dir/kernel/$version/modules-$version-ophub.tar.gz" -C "$tmp_dir/modules"
+mkdir -p \
+    "$tmp_dir/boot-input" "$tmp_dir/dtb-input" "$tmp_dir/modules" \
+    "$tmp_dir/amlogic/compile-kernel/kernel/linux-6.6.y" \
+    "$tmp_dir/amlogic/compile-kernel/tools/config" \
+    "$tmp_dir/amlogic/compile-kernel/tools/patch/linux-6.6.y"
+tar -xzf "$linux_tar" -C "$tmp_dir/amlogic/compile-kernel/kernel/linux-6.6.y" --strip-components=1
+patch --batch --dry-run -p1 \
+    -d "$tmp_dir/amlogic/compile-kernel/kernel/linux-6.6.y" \
+    < "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch"
+cp "$base_dir/kernel/configs/config-6.6" \
+    "$tmp_dir/amlogic/compile-kernel/tools/config/config-6.6"
+cp "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch" \
+    "$tmp_dir/amlogic/compile-kernel/tools/patch/linux-6.6.y/"
+patch --batch -p1 -d "$tmp_dir/amlogic" \
+    < "$base_dir/kernel/ophub/0001-use-pinned-compiler.patch"
+printf '%s  %s\n' "$patch_sha256" "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch" | sha256sum -c -
+(
+    cd "$tmp_dir/amlogic"
+    sudo env ALMA_OPHUB_SCRIPT_SOURCE="$tmp_dir/amlogic/compile-kernel/tools/script" \
+        "$tmp_dir/amlogic/recompile" \
+        -k "$version" -a false -n bbrplus -m all -p true -r ophub \
+        -d false -i ophub/armbian-trixie:arm64
+)
+kernel_bundle="$tmp_dir/amlogic/compile-kernel/output/$version.tar.gz"
+[[ -f "$kernel_bundle" ]] || { echo "缺少 Ophub 编译输出：$kernel_bundle" >&2; exit 1; }
+mkdir -p "$tmp_dir/kernel-output"
+tar -xzf "$kernel_bundle" -C "$tmp_dir/kernel-output"
+kernel_output="$tmp_dir/kernel-output/$version"
+for package_name in \
+    "boot-$kernel_variant.tar.gz" \
+    "dtb-amlogic-$kernel_variant.tar.gz" \
+    "modules-$kernel_variant.tar.gz"; do
+    [[ -f "$kernel_output/$package_name" ]] || {
+        echo "缺少 Ophub 编译输出：$kernel_output/$package_name" >&2
+        exit 1
+    }
+done
+tar -xzf "$kernel_output/boot-$kernel_variant.tar.gz" -C "$tmp_dir/boot-input"
+tar -xzf "$kernel_output/dtb-amlogic-$kernel_variant.tar.gz" -C "$tmp_dir/dtb-input"
+tar -xzf "$kernel_output/modules-$kernel_variant.tar.gz" -C "$tmp_dir/modules"
 
 mkdir -p "$tmp_dir/firmware/rtl_bt"
 for firmware_name in rtl8761b_config.bin rtl8761b_fw.bin; do
@@ -57,11 +96,11 @@ docker build --platform linux/arm64 -t "$image" -f - "$base_dir" <<DOCKERFILE
 FROM almalinux:8@$alma_digest
 RUN dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod e2fsprogs dosfstools parted && dnf clean all && rm -rf /var/cache/dnf
 RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
-RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'IPV6_DEFROUTE=yes' 'IPV6_FAILURE_FATAL=no' 'IPV6_ADDR_GEN_MODE=stable-privacy' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
+RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /etc/sysctl.d /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'IPV6_DEFROUTE=yes' 'IPV6_FAILURE_FATAL=no' 'IPV6_ADDR_GEN_MODE=stable-privacy' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && printf '%s\\n' 'net.ipv4.tcp_congestion_control = bbrplus' 'net.core.default_qdisc = fq' > /etc/sysctl.d/99-bbrplus-fq.conf && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
 DOCKERFILE
 
 container="$(docker create --platform linux/arm64 "$image")"
-docker cp "$tmp_dir/modules/$version-ophub" "$container:/usr/lib/modules/"
+docker cp "$tmp_dir/modules/$kernel_variant" "$container:/usr/lib/modules/"
 docker cp "$tmp_dir/firmware/rtl_bt/." "$container:/usr/lib/firmware/rtl_bt/"
 docker export -o "$tmp_dir/rootfs.tar" "$container"
 bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=gnutar --exclude='.dockerenv' "@$tmp_dir/rootfs.tar"
@@ -72,9 +111,9 @@ gzip -1c "$tmp_dir/rootfs-clean.tar" > "$rootfs"
 boot_stage="$tmp_dir/boot"
 mkdir -p "$boot_stage/dtb/amlogic"
 cp -a "$tmp_dir/amlogic/build-armbian/armbian-files/platform-files/amlogic/bootfs/." "$boot_stage/"
-cp "$tmp_dir/boot-input/vmlinuz-$version-ophub" "$boot_stage/zImage"
-cp "$tmp_dir/boot-input/uInitrd-$version-ophub" "$boot_stage/uInitrd"
-cp "$tmp_dir/boot-input"/*-"$version"-ophub "$boot_stage/"
+cp "$tmp_dir/boot-input/vmlinuz-$kernel_variant" "$boot_stage/zImage"
+cp "$tmp_dir/boot-input/uInitrd-$kernel_variant" "$boot_stage/uInitrd"
+cp "$tmp_dir/boot-input"/*-"$kernel_variant" "$boot_stage/"
 cp "$tmp_dir/dtb-input"/*.dtb "$boot_stage/dtb/amlogic/"
 cp "$tmp_dir/u-boot/u-boot/amlogic/overload/u-boot-e900v22c.bin" "$boot_stage/u-boot.ext"
 cp "$tmp_dir/u-boot/u-boot/amlogic/overload/u-boot-e900v22c.bin" "$boot_stage/u-boot.emmc"
@@ -92,8 +131,10 @@ rm -f "$boot_zip"
 cp "$base_dir/AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt" "$out_dir/"
 printf '%s\n' \
     "AlmaLinux image digest: $alma_digest" \
-    "ophub/kernel release: $version.tar.gz" \
-    "ophub/kernel sha256: $kernel_sha256" \
+    "ophub/linux-6.6.y commit: $linux_commit" \
+    "ophub/linux-6.6.y source tarball sha256: $linux_source_sha256" \
+    "BBRPlus patch sha256: $patch_sha256" \
+    "Kernel output: $kernel_variant" \
     "ophub/amlogic-s9xxx-armbian commit: $(git -C "$tmp_dir/amlogic" rev-parse HEAD)" \
     "ophub/u-boot commit: $(git -C "$tmp_dir/u-boot" rev-parse HEAD)" \
     "UNT403A S905L3A DTB: meson-g12a-s905l3a-m401a.dtb" \
@@ -102,8 +143,10 @@ printf '%s\n' \
     > "$out_dir/SOURCE-MANIFEST.txt"
 tar -xOzf "$rootfs" usr/bin/bash | file - | grep 'ARM aarch64' >/dev/null
 tar -xOzf "$rootfs" etc/almalinux-release | grep '8.10' >/dev/null
-tar -tzf "$rootfs" | grep "usr/lib/modules/$version-ophub/kernel/" >/dev/null
+tar -tzf "$rootfs" | grep "usr/lib/modules/$kernel_variant/kernel/" >/dev/null
 tar -tzf "$rootfs" | grep 'usr/lib/firmware/rtl_bt/rtl8761b_fw.bin' >/dev/null
+tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.ipv4.tcp_congestion_control = bbrplus' >/dev/null
+tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.core.default_qdisc = fq' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/passwd' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifup' >/dev/null
 tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Fx 'BOOTPROTO=dhcp' >/dev/null
@@ -118,6 +161,10 @@ fi
 tar -tzf "$rootfs" | grep -Fx 'etc/systemd/system/multi-user.target.wants/NetworkManager.service' >/dev/null
 unzip -t "$boot_zip" >/dev/null
 unzip -p "$boot_zip" boot/uEnv.txt | grep '^FDT=/dtb/amlogic/meson-g12a-s905l3a-m401a.dtb$' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_TCP_CONG_BBRPLUS=y' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_BBRPLUS=y' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_TCP_CONG="bbrplus"' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_NET_SCH_FQ=y' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.ext' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.emmc' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/e900v22c-u-boot.bin.sd.bin' >/dev/null

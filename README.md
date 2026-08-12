@@ -4,13 +4,14 @@
 
 rootfs 预装 `passwd`、`network-scripts` 和 NetworkManager，`eth0` 默认通过 DHCP 获取地址。
 
-当前稳定版本为 `v1.0.0`，内容为 AlmaLinux 8.10、Ophub 6.6.150 和标准 `BBR + FQ`。
+`v1.0.0` 保持不可变，内容为 AlmaLinux 8.10、Ophub 6.6.150 和标准 `BBR + FQ`。
+当前发布版本 `v1.1.0-bbrplus` 使用固定的 6.6.150 源码构建 `BBRPlus + FQ`，内核版本为 `6.6.150-bbrplus`。
 
 仓库不保存 500MB 级别的二进制包。GitHub Actions 会在 Ubuntu runner 上下载固定版本/commit 的内核、DTB、U-Boot 和 AlmaLinux 容器，构建并发布刷写包。
 
 ## 构建
 
-推送到 `main` 或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行，只生成测试 Artifact，不会自动覆盖正式版本。正式版本必须推送新的 `v*` 标签；标签会创建同名 Release。后续 BBRPlus 版本使用独立版本号（例如 `v1.1.0-bbrplus`），不会覆盖 `v1.0.0`。Workflow Artifact 文件为：
+推送到 `main` 或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行，只生成测试 Artifact，不会自动覆盖正式版本。正式版本必须推送新的 `v*` 标签；标签会创建同名 Release。BBRPlus 版本使用独立版本号，不会覆盖 `v1.0.0`。Workflow Artifact 文件为：
 
 ```text
 AlmaLinux8.10-S905L3A-UNT403A.zip
@@ -49,6 +50,7 @@ passwd root
 cat /etc/almalinux-release
 uname -a
 ip addr show eth0
+sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc
 ```
 
 默认首次登录为 `root / admin`，联网后必须修改密码。
