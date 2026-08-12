@@ -4,11 +4,13 @@
 
 rootfs 预装 `passwd`、`network-scripts` 和 NetworkManager，`eth0` 默认通过 DHCP 获取地址。
 
+当前稳定版本为 `v1.0.0`，内容为 AlmaLinux 8.10、Ophub 6.6.150 和标准 `BBR + FQ`。
+
 仓库不保存 500MB 级别的二进制包。GitHub Actions 会在 Ubuntu runner 上下载固定版本/commit 的内核、DTB、U-Boot 和 AlmaLinux 容器，构建并发布刷写包。
 
 ## 构建
 
-推送到 `main`、推送 `v*` 标签，或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行。构建完成后，`main` 和手动运行会更新 GitHub 的 `latest` Release，`v*` 标签会创建对应版本 Release；同时也会保留 workflow Artifacts：
+推送到 `main` 或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行，只生成测试 Artifact，不会自动覆盖正式版本。正式版本必须推送新的 `v*` 标签；标签会创建同名 Release。后续 BBRPlus 版本使用独立版本号（例如 `v1.1.0-bbrplus`），不会覆盖 `v1.0.0`。Workflow Artifact 文件为：
 
 ```text
 AlmaLinux8.10-S905L3A-UNT403A.zip
@@ -38,7 +40,7 @@ cat /boot/uEnv.txt
 uname -a
 ```
 
-刷写前备份原 boot 分区和当前 DTB。确认目标设备后，严格按包内 `AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt` 的旧 CentOS 写入方法执行。
+刷写前备份原 boot 分区和当前 DTB。确认目标设备后，严格按包内 `AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt` 的当前刷写方法执行，不要修改 DTB、U-Boot、挂载步骤或网络配置。
 
 首次启动后立即执行：
 
