@@ -57,7 +57,7 @@ docker build --platform linux/arm64 -t "$image" -f - "$base_dir" <<DOCKERFILE
 FROM almalinux:8@$alma_digest
 RUN dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod e2fsprogs dosfstools parted && dnf clean all && rm -rf /var/cache/dnf
 RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
-RUN mkdir -p /etc/sysconfig/network-scripts /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
+RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'IPV6_DEFROUTE=yes' 'IPV6_FAILURE_FATAL=no' 'IPV6_ADDR_GEN_MODE=stable-privacy' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
 DOCKERFILE
 
 container="$(docker create --platform linux/arm64 "$image")"
@@ -107,6 +107,14 @@ tar -tzf "$rootfs" | grep 'usr/lib/firmware/rtl_bt/rtl8761b_fw.bin' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/passwd' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifup' >/dev/null
 tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Fx 'BOOTPROTO=dhcp' >/dev/null
+if tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Eq '^(UUID|HWADDR|IPADDR|PREFIX|GATEWAY)='; then
+    echo 'ifcfg-eth0 中存在设备或网络专属配置' >&2
+    exit 1
+fi
+if tar -tzf "$rootfs" | grep -Fx 'etc/NetworkManager/system-connections/eth0.nmconnection' >/dev/null; then
+    echo 'rootfs 中存在与 ifcfg-eth0 冲突的 eth0.nmconnection' >&2
+    exit 1
+fi
 tar -tzf "$rootfs" | grep -Fx 'etc/systemd/system/multi-user.target.wants/NetworkManager.service' >/dev/null
 unzip -t "$boot_zip" >/dev/null
 unzip -p "$boot_zip" boot/uEnv.txt | grep '^FDT=/dtb/amlogic/meson-g12a-s905l3a-m401a.dtb$' >/dev/null
