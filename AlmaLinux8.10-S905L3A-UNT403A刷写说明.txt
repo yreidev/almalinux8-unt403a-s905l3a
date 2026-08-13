@@ -9,7 +9,7 @@ AlmaLinux 8.10 / AArch64 / Amlogic S905L3A / UNT403A / Ophub 6.6.150-bbrplus
 /dtb/amlogic/meson-g12a-s905l3a-m401a.dtb
 U-Boot 使用同系列共用的 u-boot-e900v22c.bin。请勿用于 S905L3B 版 UNT403A，也不要换成 CM311 或其他机型的 DTB。
 
-rootfs 已预装 passwd、network-scripts 和 NetworkManager。有线网卡使用 /etc/sysconfig/network-scripts/ifcfg-eth0 通过 DHCP 自动获取地址。/etc/fstab 会把 BOOT_EMMC 分区挂载到 /boot，进系统后可直接查看和修改 uEnv.txt、DTB。
+rootfs 已预装 NetworkManager、network-scripts、ncurses，以及 wget、curl、vim/nano、sudo、tmux、net-tools、bind-utils、traceroute、tcpdump、ethtool、lsof、rsync、cronie（crond 自启）、tar/unzip/zip 等常用工具。有线网卡使用 /etc/sysconfig/network-scripts/ifcfg-eth0 通过 DHCP 自动获取地址。/etc/fstab 会把 BOOT_EMMC 分区挂载到 /boot，进系统后可直接查看和修改 uEnv.txt、DTB。
 
 重要
 1. 这套旧写入方法只能使用 Armbian Bullseye。Jammy 会提示代码或命令错误。

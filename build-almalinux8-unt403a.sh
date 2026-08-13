@@ -95,8 +95,8 @@ done
 mkdir -p "$tmp_dir/docker-context"
 docker build --platform linux/arm64 -t "$image" -f - "$tmp_dir/docker-context" <<DOCKERFILE
 FROM almalinux:8@$alma_digest
-RUN dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod e2fsprogs dosfstools parted && dnf clean all && rm -rf /var/cache/dnf
-RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && chage -d 0 root && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
+RUN dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod ncurses e2fsprogs dosfstools parted wget curl tar gzip bzip2 xz unzip zip less which sudo vim-minimal nano bind-utils net-tools traceroute tcpdump ethtool lsof rsync cronie bash-completion tmux && dnf clean all && rm -rf /var/cache/dnf
+RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && chage -d 0 root && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd crond getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
 RUN printf '%s\\n' 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,nodiratime,commit=600,errors=remount-ro 0 1' 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' > /etc/fstab
 RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /etc/sysctl.d /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'IPV6_DEFROUTE=yes' 'IPV6_FAILURE_FATAL=no' 'IPV6_ADDR_GEN_MODE=stable-privacy' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && printf '%s\\n' 'net.ipv4.tcp_congestion_control = bbrplus' 'net.core.default_qdisc = fq' > /etc/sysctl.d/99-bbrplus-fq.conf && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
 DOCKERFILE
@@ -169,6 +169,12 @@ tar -tzf "$rootfs" | grep 'usr/lib/firmware/rtl_bt/rtl8761b_fw.bin' >/dev/null
 tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.ipv4.tcp_congestion_control = bbrplus' >/dev/null
 tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.core.default_qdisc = fq' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/passwd' >/dev/null
+tar -tzf "$rootfs" | grep -Fx 'usr/bin/clear' >/dev/null
+tar -tzf "$rootfs" | grep -Fx 'usr/bin/tput' >/dev/null
+tar -tzf "$rootfs" | grep -Fx 'usr/bin/wget' >/dev/null
+tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifconfig' >/dev/null
+tar -tzf "$rootfs" | grep -Fx 'usr/bin/crontab' >/dev/null
+tar -tzf "$rootfs" | grep -Fx 'usr/bin/tmux' >/dev/null
 tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,nodiratime,commit=600,errors=remount-ro 0 1' >/dev/null
 tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' >/dev/null
 tar -xOzf "$rootfs" etc/shadow | awk -F: '$1 == "root" { found = 1; bad = ($3 != "0") } END { exit (found && !bad) ? 0 : 1 }'
