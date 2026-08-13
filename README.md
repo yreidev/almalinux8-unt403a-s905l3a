@@ -11,15 +11,13 @@ rootfs 预装 NetworkManager、`network-scripts`、`ncurses`，以及 `wget`、`
 
 ## 构建
 
-推送到 `main` 或在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行，只生成测试 Artifact，不会自动覆盖正式版本。正式版本必须推送新的 `v*` 标签；标签会创建同名 Release。BBRPlus 版本使用独立版本号，不会覆盖 `v1.0.0`。
+推送 `v*` 标签（如 `v1.2.0`）即触发正式构建并自动创建同名 Release；也可在 **Actions → Build AlmaLinux 8.10 for UNT403A → Run workflow** 手动运行，只生成测试 Artifact，不会发布。`v1.0.0` 保持不可变，推送新标签不会覆盖旧 Release。
 
-所有构建共用一个队列：`main` 推送串行排队、被顶替的排队构建自动取消；推送标签会取消进行中的 `main` 测试构建，标签发布构建不会被 `main` 推送取消。
-
-产物文件名带触发引用（`main` 构建为 `-main`，标签构建为标签名，如 `-v1.1.0-bbrplus`）：
+产物文件名固定，版本由标签区分：
 
 ```text
-AlmaLinux8.10-S905L3A-UNT403A-<ref>.zip
-AlmaLinux8.10-S905L3A-UNT403A-<ref>.zip.sha256
+AlmaLinux8.10-S905L3A-UNT403A.zip
+AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
 ```
 
 压缩包内包含：
