@@ -2,7 +2,7 @@
 
 本仓库自动构建 AlmaLinux 8.10 AArch64、Ophub 6.6.150 内核的 S905L3A / UNT403A 刷写包。Ophub 对 UNT403A 的设备表映射为 `meson-g12a-s905l3a-m401a.dtb` 和 `u-boot-e900v22c.bin`。
 
-rootfs 预装 `passwd`、`network-scripts` 和 NetworkManager，`eth0` 默认通过 DHCP 获取地址。`/etc/fstab` 按 `LABEL=ROOTFS_EMMC` / `LABEL=BOOT_EMMC` 挂载根分区和 `/boot`，rootfs 打包保留文件 capabilities（非 root 用户可用 `ping`）。
+rootfs 预装 `passwd`、`network-scripts` 和 NetworkManager，`eth0` 默认通过 DHCP 获取地址。`/etc/fstab` 按 `LABEL=ROOTFS_EMMC` / `LABEL=BOOT_EMMC` 挂载根分区和 `/boot`，rootfs 以 pax 格式打包，保留 `arping`、`clockdiff`、`newuidmap`、`newgidmap` 的文件 capabilities。
 
 `v1.0.0` 保持不可变，内容为 AlmaLinux 8.10、Ophub 6.6.150 和标准 `BBR + FQ`。
 当前发布版本 `v1.1.0-bbrplus` 使用固定的 6.6.150 源码构建 `BBRPlus + FQ`，内核版本为 `6.6.150-bbrplus`。

@@ -105,7 +105,9 @@ container="$(docker create --platform linux/arm64 "$image")"
 docker cp "$tmp_dir/modules/$kernel_variant" "$container:/usr/lib/modules/"
 docker cp "$tmp_dir/firmware/rtl_bt/." "$container:/usr/lib/firmware/rtl_bt/"
 docker export -o "$tmp_dir/rootfs.tar" "$container"
-bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=pax --exclude='.dockerenv' "@$tmp_dir/rootfs.tar"
+# GNU tar 只认 SCHILY 前缀的 xattr，libarchive 默认额外写的 LIBARCHIVE 前缀会让刷写时刷屏告警
+bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=pax --options xattrheader=SCHILY \
+    --exclude='.dockerenv' "@$tmp_dir/rootfs.tar"
 
 rootfs="$out_dir/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz"
 rm -f "$rootfs"
@@ -157,14 +159,20 @@ python3 - "$rootfs" <<'PYEOF'
 import sys
 import tarfile
 
+expected = {
+    "usr/bin/newgidmap",
+    "usr/bin/newuidmap",
+    "usr/sbin/arping",
+    "usr/sbin/clockdiff",
+}
+found = set()
 with tarfile.open(sys.argv[1], "r:gz") as archive:
     for member in archive:
-        if member.name == "usr/bin/ping":
-            if not any("xattr.security.capability" in key for key in member.pax_headers):
-                raise SystemExit("usr/bin/ping 丢失 security.capability xattr")
-            break
-    else:
-        raise SystemExit("rootfs 中找不到 usr/bin/ping")
+        if "SCHILY.xattr.security.capability" in member.pax_headers:
+            found.add(member.name)
+missing = expected - found
+if missing:
+    raise SystemExit("rootfs 丢失 security.capability xattr：" + " ".join(sorted(missing)))
 PYEOF
 tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifup' >/dev/null
 tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Fx 'BOOTPROTO=dhcp' >/dev/null
