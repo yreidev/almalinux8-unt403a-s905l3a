@@ -10,3 +10,9 @@
 the `READ_ONCE`/`WRITE_ONCE` pacing-rate access fixes from newer code. It keeps
 the APIs required by the 6.6 BBR implementation and does not port the 6.12
 congestion-control callback signatures.
+
+Local config deltas from the ophub base:
+
+- `CONFIG_IPV6_SIT=m`、`CONFIG_IPV6_TUNNEL=m`（基线为 `y`）：改成模块后开机不再
+  自动创建 `sit0` / `ip6tnl0` 占位接口，需要隧道时 `modprobe sit` / `modprobe
+  ip6_tunnel` 即可。

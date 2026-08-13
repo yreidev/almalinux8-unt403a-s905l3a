@@ -215,6 +215,8 @@ unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_TCP_CONG_B
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_BBRPLUS=y' >/dev/null
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_TCP_CONG="bbrplus"' >/dev/null
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_NET_SCH_FQ=y' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_IPV6_SIT=m' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_IPV6_TUNNEL=m' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.ext' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.emmc' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/e900v22c-u-boot.bin.sd.bin' >/dev/null
