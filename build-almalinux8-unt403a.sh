@@ -22,7 +22,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in awk bsdtar curl docker file git gzip patch sha256sum sudo tar unzip zip; do
+for command_name in awk bsdtar curl docker file git gzip patch python3 sha256sum sudo tar unzip zip; do
     command -v "$command_name" >/dev/null || { echo "缺少命令：$command_name" >&2; exit 1; }
 done
 
@@ -52,6 +52,7 @@ mkdir -p \
     "$tmp_dir/amlogic/compile-kernel/tools/config" \
     "$tmp_dir/amlogic/compile-kernel/tools/patch/linux-6.6.y"
 tar -xzf "$linux_tar" -C "$tmp_dir/amlogic/compile-kernel/kernel/linux-6.6.y" --strip-components=1
+printf '%s  %s\n' "$patch_sha256" "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch" | sha256sum -c -
 patch --batch --dry-run -p1 \
     -d "$tmp_dir/amlogic/compile-kernel/kernel/linux-6.6.y" \
     < "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch"
@@ -61,7 +62,6 @@ cp "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch" \
     "$tmp_dir/amlogic/compile-kernel/tools/patch/linux-6.6.y/"
 patch --batch -p1 -d "$tmp_dir/amlogic" \
     < "$base_dir/kernel/ophub/0001-use-pinned-compiler.patch"
-printf '%s  %s\n' "$patch_sha256" "$base_dir/kernel/patches/0001-bbrplus-6.6.150.patch" | sha256sum -c -
 (
     cd "$tmp_dir/amlogic"
     sudo env ALMA_OPHUB_SCRIPT_SOURCE="$tmp_dir/amlogic/compile-kernel/tools/script" \
@@ -92,10 +92,12 @@ for firmware_name in rtl8761b_config.bin rtl8761b_fw.bin; do
     curl -LfsS "https://raw.githubusercontent.com/ophub/firmware/main/firmware/rtl_bt/$firmware_name" -o "$tmp_dir/firmware/rtl_bt/$firmware_name"
 done
 
-docker build --platform linux/arm64 -t "$image" -f - "$base_dir" <<DOCKERFILE
+mkdir -p "$tmp_dir/docker-context"
+docker build --platform linux/arm64 -t "$image" -f - "$tmp_dir/docker-context" <<DOCKERFILE
 FROM almalinux:8@$alma_digest
 RUN dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod e2fsprogs dosfstools parted && dnf clean all && rm -rf /var/cache/dnf
-RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
+RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && chage -d 0 root && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
+RUN printf '%s\\n' 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,nodiratime,commit=600,errors=remount-ro 0 1' 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' > /etc/fstab
 RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /etc/sysctl.d /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'IPV6_DEFROUTE=yes' 'IPV6_FAILURE_FATAL=no' 'IPV6_ADDR_GEN_MODE=stable-privacy' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && printf '%s\\n' 'net.ipv4.tcp_congestion_control = bbrplus' 'net.core.default_qdisc = fq' > /etc/sysctl.d/99-bbrplus-fq.conf && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
 DOCKERFILE
 
@@ -103,11 +105,11 @@ container="$(docker create --platform linux/arm64 "$image")"
 docker cp "$tmp_dir/modules/$kernel_variant" "$container:/usr/lib/modules/"
 docker cp "$tmp_dir/firmware/rtl_bt/." "$container:/usr/lib/firmware/rtl_bt/"
 docker export -o "$tmp_dir/rootfs.tar" "$container"
-bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=gnutar --exclude='.dockerenv' "@$tmp_dir/rootfs.tar"
+bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=pax --exclude='.dockerenv' "@$tmp_dir/rootfs.tar"
 
 rootfs="$out_dir/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz"
 rm -f "$rootfs"
-gzip -1c "$tmp_dir/rootfs-clean.tar" > "$rootfs"
+gzip -6c "$tmp_dir/rootfs-clean.tar" > "$rootfs"
 boot_stage="$tmp_dir/boot"
 mkdir -p "$boot_stage/dtb/amlogic"
 cp -a "$tmp_dir/amlogic/build-armbian/armbian-files/platform-files/amlogic/bootfs/." "$boot_stage/"
@@ -148,6 +150,22 @@ tar -tzf "$rootfs" | grep 'usr/lib/firmware/rtl_bt/rtl8761b_fw.bin' >/dev/null
 tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.ipv4.tcp_congestion_control = bbrplus' >/dev/null
 tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.core.default_qdisc = fq' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/passwd' >/dev/null
+tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,nodiratime,commit=600,errors=remount-ro 0 1' >/dev/null
+tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' >/dev/null
+tar -xOzf "$rootfs" etc/shadow | awk -F: '$1 == "root" { found = 1; bad = ($3 != "0") } END { exit (found && !bad) ? 0 : 1 }'
+python3 - "$rootfs" <<'PYEOF'
+import sys
+import tarfile
+
+with tarfile.open(sys.argv[1], "r:gz") as archive:
+    for member in archive:
+        if member.name == "usr/bin/ping":
+            if not any("xattr.security.capability" in key for key in member.pax_headers):
+                raise SystemExit("usr/bin/ping 丢失 security.capability xattr")
+            break
+    else:
+        raise SystemExit("rootfs 中找不到 usr/bin/ping")
+PYEOF
 tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifup' >/dev/null
 tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Fx 'BOOTPROTO=dhcp' >/dev/null
 if tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Eq '^(UUID|HWADDR|IPADDR|PREFIX|GATEWAY)='; then

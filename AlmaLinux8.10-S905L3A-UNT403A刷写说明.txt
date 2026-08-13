@@ -3,12 +3,13 @@ AlmaLinux 8.10 / AArch64 / Amlogic S905L3A / UNT403A / Ophub 6.6.150-bbrplus
 默认登录
 用户名：root
 密码：admin
+首次登录会强制要求修改 root 密码，改完才能继续使用。
 
 本包使用固定源码构建的 Ophub 6.6.150-bbrplus 内核、DTB、U-Boot 和启动文件。内核包含注册名为 `bbrplus` 的 BBRPlus 和 FQ。Ophub 为 S905L3A 版 UNT403A 指定的设备树为：
 /dtb/amlogic/meson-g12a-s905l3a-m401a.dtb
 请勿用于 S905L3B 版 UNT403A，也不要改成 CM311 DTB。
 
-rootfs 已预装 passwd、network-scripts 和 NetworkManager。有线网卡使用 /etc/sysconfig/network-scripts/ifcfg-eth0 通过 DHCP 自动获取地址。
+rootfs 已预装 passwd、network-scripts 和 NetworkManager。有线网卡使用 /etc/sysconfig/network-scripts/ifcfg-eth0 通过 DHCP 自动获取地址。/etc/fstab 会把 BOOT_EMMC 分区挂载到 /boot，进系统后可直接查看和修改 uEnv.txt、DTB。
 
 重要
 1. 这套旧写入方法只能使用 Armbian Bullseye。Jammy 会提示代码或命令错误。
@@ -28,10 +29,21 @@ AlmaLinux-8.10-S905L3A-UNT403A-boot.zip
 
 三、按照旧 CentOS 方法写入（把 mmcblk2 换成实际 eMMC）：
 
+先确认卷标。uEnv.txt 按 LABEL=ROOTFS_EMMC 挂载根分区，ROOTFS_EMMC 不对会开机卡死；fstab 按 LABEL=BOOT_EMMC 挂载 /boot，BOOT_EMMC 不对则 /boot 不会挂载：
+
+blkid /dev/mmcblk2p1 /dev/mmcblk2p2
+
+要求 p1 的 LABEL 是 BOOT_EMMC、p2 的 LABEL 是 ROOTFS_EMMC。不一致时先修正再继续：
+
+fatlabel /dev/mmcblk2p1 BOOT_EMMC
+e2label /dev/mmcblk2p2 ROOTFS_EMMC
+
+然后写入。rm -rf /mnt/* 会报一条 rm: cannot remove '/mnt/boot': Device or resource busy，这是挂载点目录本身删不掉，属正常现象，两个分区的内容已清空，继续执行后面的命令即可：
+
 mount /dev/mmcblk2p2 /mnt
 mount /dev/mmcblk2p1 /mnt/boot
 rm -rf /mnt/*
-tar xvpfz /root/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz -C /mnt/
+tar --xattrs --xattrs-include='security.capability' -xvpzf /root/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz -C /mnt/
 cd /root
 unzip AlmaLinux-8.10-S905L3A-UNT403A-boot.zip
 cp -r boot /mnt
@@ -40,13 +52,13 @@ shutdown now
 
 四、拔出 Armbian U 盘，从 eMMC 开机。
 
-首次启动后立即修改 root 密码：
-passwd root
+首次登录用 root / admin，系统会强制要求修改 root 密码。
 
-检查：
+改完密码后检查：
 cat /etc/almalinux-release
 uname -a
 lsblk -f
+df -h /boot
 ip addr show eth0
 sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc
 
