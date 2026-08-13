@@ -112,13 +112,30 @@ bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=pax --options xattrheader=SCHILY
 rootfs="$out_dir/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz"
 rm -f "$rootfs"
 gzip -6c "$tmp_dir/rootfs-clean.tar" > "$rootfs"
+dtb_name="meson-g12a-s905l3a-m401a.dtb"
+dtb_file="$tmp_dir/dtb-input/$dtb_name"
+[[ -f "$dtb_file" ]] || { echo "缺少 UNT403A DTB：$dtb_file" >&2; exit 1; }
+ophub_bootfs="$tmp_dir/amlogic/build-armbian/armbian-files/platform-files/amlogic/bootfs"
 boot_stage="$tmp_dir/boot"
 mkdir -p "$boot_stage/dtb/amlogic"
-cp -a "$tmp_dir/amlogic/build-armbian/armbian-files/platform-files/amlogic/bootfs/." "$boot_stage/"
+for boot_script in \
+    aml_autoscript aml_autoscript.cmd \
+    s905_autoscript s905_autoscript.cmd \
+    emmc_autoscript emmc_autoscript.cmd \
+    boot.cmd boot.scr boot.ini \
+    boot-emmc.cmd boot-emmc.scr boot-emmc.ini \
+    boot.bmp
+do
+    [[ -f "$ophub_bootfs/$boot_script" ]] || {
+        echo "缺少启动脚本：$ophub_bootfs/$boot_script" >&2
+        exit 1
+    }
+    cp "$ophub_bootfs/$boot_script" "$boot_stage/"
+done
 cp "$tmp_dir/boot-input/vmlinuz-$kernel_variant" "$boot_stage/zImage"
 cp "$tmp_dir/boot-input/uInitrd-$kernel_variant" "$boot_stage/uInitrd"
 cp "$tmp_dir/boot-input"/*-"$kernel_variant" "$boot_stage/"
-cp "$tmp_dir/dtb-input"/*.dtb "$boot_stage/dtb/amlogic/"
+cp "$dtb_file" "$boot_stage/dtb/amlogic/"
 cp "$tmp_dir/u-boot/u-boot/amlogic/overload/u-boot-e900v22c.bin" "$boot_stage/u-boot.ext"
 cp "$tmp_dir/u-boot/u-boot/amlogic/overload/u-boot-e900v22c.bin" "$boot_stage/u-boot.emmc"
 cp "$tmp_dir/u-boot/u-boot/amlogic/bootloader/e900v22c-u-boot.bin.sd.bin" "$boot_stage/"
@@ -141,7 +158,7 @@ printf '%s\n' \
     "Kernel output: $kernel_variant" \
     "ophub/amlogic-s9xxx-armbian commit: $(git -C "$tmp_dir/amlogic" rev-parse HEAD)" \
     "ophub/u-boot commit: $(git -C "$tmp_dir/u-boot" rev-parse HEAD)" \
-    "UNT403A S905L3A DTB: meson-g12a-s905l3a-m401a.dtb" \
+    "UNT403A S905L3A DTB: $dtb_name" \
     "u-boot-e900v22c.bin sha256: $(sha256sum "$tmp_dir/u-boot/u-boot/amlogic/overload/u-boot-e900v22c.bin" | awk '{print $1}')" \
     "e900v22c-u-boot.bin.sd.bin sha256: $(sha256sum "$tmp_dir/u-boot/u-boot/amlogic/bootloader/e900v22c-u-boot.bin.sd.bin" | awk '{print $1}')" \
     > "$out_dir/SOURCE-MANIFEST.txt"
@@ -186,7 +203,14 @@ if tar -tzf "$rootfs" | grep -Fx 'etc/NetworkManager/system-connections/eth0.nmc
 fi
 tar -tzf "$rootfs" | grep -Fx 'etc/systemd/system/multi-user.target.wants/NetworkManager.service' >/dev/null
 unzip -t "$boot_zip" >/dev/null
-unzip -p "$boot_zip" boot/uEnv.txt | grep '^FDT=/dtb/amlogic/meson-g12a-s905l3a-m401a.dtb$' >/dev/null
+unzip -p "$boot_zip" boot/uEnv.txt | grep "^FDT=/dtb/amlogic/$dtb_name\$" >/dev/null
+unzip -Z1 "$boot_zip" | grep -Fx "boot/dtb/amlogic/$dtb_name" >/dev/null
+dtb_count="$(unzip -Z1 "$boot_zip" | grep -c '\.dtb$' || true)"
+[[ "$dtb_count" -eq 1 ]] || { echo "boot 包 DTB 数量异常：$dtb_count" >&2; exit 1; }
+if unzip -Z1 "$boot_zip" | grep -E 'cm311|e900v22c\.dtb|gtking|s905l3b|extlinux|u-boot\.sd$|u-boot\.usb$'; then
+    echo 'boot 包混入了其他机型文件' >&2
+    exit 1
+fi
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_TCP_CONG_BBRPLUS=y' >/dev/null
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_BBRPLUS=y' >/dev/null
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_TCP_CONG="bbrplus"' >/dev/null

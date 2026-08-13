@@ -1,6 +1,6 @@
 # AlmaLinux 8.10 for UNT403A (S905L3A)
 
-本仓库自动构建 AlmaLinux 8.10 AArch64、Ophub 6.6.150 内核的 S905L3A / UNT403A 刷写包。Ophub 对 UNT403A 的设备表映射为 `meson-g12a-s905l3a-m401a.dtb` 和 `u-boot-e900v22c.bin`。
+本仓库自动构建 AlmaLinux 8.10 AArch64、Ophub 6.6.150 内核的 S905L3A / UNT403A 刷写包。Ophub 对 UNT403A 的设备表映射为 `meson-g12a-s905l3a-m401a.dtb` 和 `u-boot-e900v22c.bin`。boot 包只包含这台机器的启动脚本、这一份 DTB 和对应 U-Boot，不含 CM311、E900V22C、GT King 等其他机型文件。
 
 rootfs 预装 `passwd`、`network-scripts` 和 NetworkManager，`eth0` 默认通过 DHCP 获取地址。`/etc/fstab` 按 `LABEL=ROOTFS_EMMC` / `LABEL=BOOT_EMMC` 挂载根分区和 `/boot`，rootfs 以 pax 格式打包，保留 `arping`、`clockdiff`、`newuidmap`、`newgidmap` 的文件 capabilities。
 
