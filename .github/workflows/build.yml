@@ -9,6 +9,12 @@ on:
 permissions:
   contents: write
 
+# 全部构建共用一个队列：main 推送排队串行，被顶替的排队构建自动取消；
+# 推送 tag 时取消进行中的 main 测试构建，正在发布的 tag 构建不会被 main 推送取消。
+concurrency:
+  group: build-almalinux8-unt403a
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
@@ -17,23 +23,23 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y libarchive-tools zip unzip file git curl patch
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools zip unzip file git curl patch python3
 
       - name: Build image
         run: ./build-almalinux8-unt403a.sh
 
       - name: Package artifact
         run: |
-          zip -qr -9 AlmaLinux8.10-S905L3A-UNT403A.zip AlmaLinux8.10-S905L3A-UNT403A
-          sha256sum AlmaLinux8.10-S905L3A-UNT403A.zip > AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
+          zip -qr -9 "AlmaLinux8.10-S905L3A-UNT403A-${GITHUB_REF_NAME}.zip" AlmaLinux8.10-S905L3A-UNT403A
+          sha256sum "AlmaLinux8.10-S905L3A-UNT403A-${GITHUB_REF_NAME}.zip" > "AlmaLinux8.10-S905L3A-UNT403A-${GITHUB_REF_NAME}.zip.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AlmaLinux8.10-S905L3A-UNT403A
+          name: AlmaLinux8.10-S905L3A-UNT403A-${{ github.ref_name }}
           path: |
-            AlmaLinux8.10-S905L3A-UNT403A.zip
-            AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
+            AlmaLinux8.10-S905L3A-UNT403A-*.zip
+            AlmaLinux8.10-S905L3A-UNT403A-*.zip.sha256
           if-no-files-found: error
 
       - name: Create release
@@ -43,5 +49,5 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           files: |
-            AlmaLinux8.10-S905L3A-UNT403A.zip
-            AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
+            AlmaLinux8.10-S905L3A-UNT403A-*.zip
+            AlmaLinux8.10-S905L3A-UNT403A-*.zip.sha256
