@@ -167,7 +167,8 @@ printf '%s\n' \
 boot_zip="$out_dir/AlmaLinux-8.10-S905L3A-UNT403A-boot.zip"
 rm -f "$boot_zip"
 (cd "$tmp_dir" && zip -qr -9 "$boot_zip" boot)
-cp "$base_dir/AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt" "$out_dir/"
+rm -f "$out_dir/AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt"
+cp "$base_dir/AlmaLinux8.10-S905L3A-UNT403A刷写说明.md" "$out_dir/"
 printf '%s\n' \
     "AlmaLinux image digest: $alma_digest" \
     "ophub/linux-6.6.y commit: $linux_commit" \
@@ -266,5 +267,5 @@ unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx '# CONFIG_IPV6_GRE
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.ext' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.emmc' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/e900v22c-u-boot.bin.sd.bin' >/dev/null
-(cd "$out_dir" && sha256sum "$(basename "$rootfs")" "$(basename "$boot_zip")" AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt SOURCE-MANIFEST.txt > SHA256SUMS)
+(cd "$out_dir" && sha256sum "$(basename "$rootfs")" "$(basename "$boot_zip")" AlmaLinux8.10-S905L3A-UNT403A刷写说明.md SOURCE-MANIFEST.txt > SHA256SUMS)
 echo "完成：$out_dir"

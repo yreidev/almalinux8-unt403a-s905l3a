@@ -30,7 +30,7 @@ AlmaLinux8.10-S905L3A-UNT403A.zip.sha256
 AlmaLinux8.10-S905L3A-UNT403A/
 ├── AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz
 ├── AlmaLinux-8.10-S905L3A-UNT403A-boot.zip
-├── AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt
+├── AlmaLinux8.10-S905L3A-UNT403A刷写说明.md
 ├── SHA256SUMS
 └── SOURCE-MANIFEST.txt
 ```
@@ -47,7 +47,7 @@ cat /boot/uEnv.txt
 uname -a
 ```
 
-刷写前备份原 boot 分区和当前 DTB。确认目标设备后，严格按包内 `AlmaLinux8.10-S905L3A-UNT403A刷写说明.txt` 的当前刷写方法执行，不要修改 DTB、U-Boot、挂载步骤或网络配置。
+刷写前备份原 boot 分区和当前 DTB。确认目标设备后，严格按包内 `AlmaLinux8.10-S905L3A-UNT403A刷写说明.md` 的当前刷写方法执行，不要修改 DTB、U-Boot、挂载步骤或网络配置。
 
 默认登录为 `root / admin`。登录后检查：
 
