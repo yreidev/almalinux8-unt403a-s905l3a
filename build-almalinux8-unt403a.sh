@@ -95,19 +95,37 @@ done
 mkdir -p "$tmp_dir/docker-context"
 docker build --platform linux/arm64 -t "$image" -f - "$tmp_dir/docker-context" <<DOCKERFILE
 FROM almalinux:8@$alma_digest
-RUN dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod ncurses e2fsprogs dosfstools parted wget curl tar gzip bzip2 xz unzip zip less which sudo vim-minimal nano bind-utils net-tools traceroute tcpdump ethtool lsof rsync cronie bash-completion tmux && dnf clean all && rm -rf /var/cache/dnf
-RUN printf 'AlmaLinux\\n' > /etc/hostname && printf 'root:admin\\n' | chpasswd && chage -d 0 root && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd crond getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
-RUN printf '%s\\n' 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,nodiratime,commit=600,errors=remount-ro 0 1' 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' > /etc/fstab
-RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /etc/sysctl.d /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=yes' 'IPV6_AUTOCONF=yes' 'IPV6_DEFROUTE=yes' 'IPV6_FAILURE_FATAL=no' 'IPV6_ADDR_GEN_MODE=stable-privacy' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && printf '%s\\n' 'net.ipv4.tcp_congestion_control = bbrplus' 'net.core.default_qdisc = fq' > /etc/sysctl.d/99-bbrplus-fq.conf && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
+RUN dnf -y install epel-release && \
+    dnf -y install NetworkManager NetworkManager-tui network-scripts passwd openssh-server openssh-clients chrony iproute procps-ng kmod ncurses e2fsprogs dosfstools parted wget curl tar gzip bzip2 xz unzip zip less which sudo vim-minimal nano bind-utils net-tools traceroute tcpdump ethtool lsof rsync cronie bash-completion tmux diffutils dnf-plugins-core glibc-gconv-extra glibc-langpack-en htop libxkbcommon openssl openssl-pkcs11 platform-python-pip shared-mime-info xkeyboard-config && \
+    dnf clean all && rm -rf /var/cache/dnf
+RUN printf 'root:admin\\n' | chpasswd && ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && printf 'SELINUX=disabled\\nSELINUXTYPE=targeted\\n' > /etc/selinux/config && sed -ri -e 's/^[#[:space:]]*PermitRootLogin[[:space:]].*/PermitRootLogin yes/' -e 's/^[#[:space:]]*PasswordAuthentication[[:space:]].*/PasswordAuthentication yes/' -e 's/^[#[:space:]]*UseDNS[[:space:]].*/UseDNS no/' /etc/ssh/sshd_config && systemctl enable NetworkManager sshd chronyd crond getty@tty1.service serial-getty@ttyAML0.service && systemctl set-default multi-user.target && rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed /etc/ssh/ssh_host_* && touch /etc/machine-id
+RUN printf '%s\\n' 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,data=ordered,commit=5,errors=remount-ro 0 1' 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' > /etc/fstab
+RUN printf '%s\\n' '' 'net.ipv4.tcp_rmem = 4096 87380 16777216' 'net.ipv4.tcp_wmem = 4096 87380 16777216' 'net.core.rmem_max = 16777216' 'net.core.wmem_max = 16777216' '#net.core.netdev_max_backlog = 100000' '' 'net.ipv4.tcp_window_scaling=1' 'net.ipv4.tcp_timestamps=1' 'net.ipv4.tcp_sack=1' '' 'net.ipv4.ip_forward = 1' 'net.ipv6.conf.default.disable_ipv6 = 1' 'net.ipv6.conf.eth0.disable_ipv6 = 1' >> /etc/sysctl.conf
+RUN rm -f /etc/NetworkManager/system-connections/eth0.nmconnection && mkdir -p /etc/sysconfig/network-scripts /etc/systemd/network /etc/sysctl.d /usr/lib/firmware/rtl_bt && printf '%s\\n' 'TYPE=Ethernet' 'PROXY_METHOD=none' 'BROWSER_ONLY=no' 'DEVICE=eth0' 'NAME=eth0' 'ONBOOT=yes' 'BOOTPROTO=dhcp' 'DEFROUTE=yes' 'IPV4_FAILURE_FATAL=no' 'IPV6INIT=no' 'PEERDNS=yes' 'NM_CONTROLLED=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0 && printf '%s\\n' '[Link]' 'NamePolicy=kernel database onboard slot path' 'AlternativeNamesPolicy=' 'MACAddressPolicy=persistent' > /etc/systemd/network/99-default.link && printf '%s\\n' 'net.ipv4.tcp_congestion_control = bbrplus' 'net.core.default_qdisc = fq' > /etc/sysctl.d/99-bbrplus-fq.conf && chmod 600 /etc/sysconfig/network-scripts/ifcfg-eth0
 DOCKERFILE
 
 container="$(docker create --platform linux/arm64 "$image")"
 docker cp "$tmp_dir/modules/$kernel_variant" "$container:/usr/lib/modules/"
 docker cp "$tmp_dir/firmware/rtl_bt/." "$container:/usr/lib/firmware/rtl_bt/"
 docker export -o "$tmp_dir/rootfs.tar" "$container"
+mkdir -p "$tmp_dir/rootfs-overlay/etc"
+printf 'AlmaLinux8\n' > "$tmp_dir/rootfs-overlay/etc/hostname"
+printf '%s\n' \
+    '127.0.0.1 localhost localhost.localdomain localhost4 localhost4.localdomain4' \
+    '127.0.1.1 AlmaLinux8' \
+    '::1 localhost localhost.localdomain localhost6 localhost6.localdomain6' \
+    > "$tmp_dir/rootfs-overlay/etc/hosts"
+: > "$tmp_dir/rootfs-overlay/etc/resolv.conf"
+chmod 0644 "$tmp_dir/rootfs-overlay/etc/hostname" \
+    "$tmp_dir/rootfs-overlay/etc/hosts" "$tmp_dir/rootfs-overlay/etc/resolv.conf"
 # GNU tar 只认 SCHILY 前缀的 xattr，libarchive 默认额外写的 LIBARCHIVE 前缀会让刷写时刷屏告警
 bsdtar -cf "$tmp_dir/rootfs-clean.tar" --format=pax --options xattrheader=SCHILY \
-    --exclude='.dockerenv' "@$tmp_dir/rootfs.tar"
+    --exclude='.dockerenv' \
+    --exclude='etc/hostname' --exclude='etc/hosts' --exclude='etc/resolv.conf' \
+    "@$tmp_dir/rootfs.tar"
+bsdtar -rf "$tmp_dir/rootfs-clean.tar" --format=pax \
+    --uid 0 --gid 0 --uname root --gname root \
+    -C "$tmp_dir/rootfs-overlay" etc/hostname etc/hosts etc/resolv.conf
 
 rootfs="$out_dir/AlmaLinux-8.10-aarch64-S905L3A-UNT403A-rootfs.tgz"
 rm -f "$rootfs"
@@ -144,7 +162,7 @@ printf '%s\n' \
     'LINUX=/zImage' \
     'INITRD=/uInitrd' \
     'FDT=/dtb/amlogic/meson-g12a-s905l3a-m401a.dtb' \
-    'APPEND=root=LABEL=ROOTFS_EMMC rootflags=data=writeback rw rootwait rootfstype=ext4 console=ttyAML0,115200n8 console=tty0 no_console_suspend consoleblank=0 fsck.fix=yes fsck.repair=yes net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory swapaccount=1 selinux=0' \
+    'APPEND=root=LABEL=ROOTFS_EMMC rootflags=data=ordered rw rootwait rootfstype=ext4 console=ttyAML0,115200n8 console=tty0 no_console_suspend consoleblank=0 fsck.fix=yes fsck.repair=yes net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory swapaccount=1 selinux=0' \
     > "$boot_stage/uEnv.txt"
 boot_zip="$out_dir/AlmaLinux-8.10-S905L3A-UNT403A-boot.zip"
 rm -f "$boot_zip"
@@ -164,10 +182,27 @@ printf '%s\n' \
     > "$out_dir/SOURCE-MANIFEST.txt"
 tar -xOzf "$rootfs" usr/bin/bash | file - | grep 'ARM aarch64' >/dev/null
 tar -xOzf "$rootfs" etc/almalinux-release | grep '8.10' >/dev/null
+tar -xOzf "$rootfs" etc/hostname | grep -Fx 'AlmaLinux8' >/dev/null
+tar -xOzf "$rootfs" etc/hosts | grep -Fx '127.0.1.1 AlmaLinux8' >/dev/null
 tar -tzf "$rootfs" | grep "usr/lib/modules/$kernel_variant/kernel/" >/dev/null
 tar -tzf "$rootfs" | grep 'usr/lib/firmware/rtl_bt/rtl8761b_fw.bin' >/dev/null
 tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.ipv4.tcp_congestion_control = bbrplus' >/dev/null
 tar -xOzf "$rootfs" etc/sysctl.d/99-bbrplus-fq.conf | grep -Fx 'net.core.default_qdisc = fq' >/dev/null
+rootfs_config="$(tar -xOzf "$rootfs" etc/sysctl.conf etc/ssh/sshd_config)"
+for expected_line in \
+    'UseDNS no' \
+    'net.ipv4.tcp_rmem = 4096 87380 16777216' \
+    'net.ipv4.tcp_wmem = 4096 87380 16777216' \
+    'net.core.rmem_max = 16777216' \
+    'net.core.wmem_max = 16777216' \
+    'net.ipv4.tcp_window_scaling=1' \
+    'net.ipv4.tcp_timestamps=1' \
+    'net.ipv4.tcp_sack=1' \
+    'net.ipv4.ip_forward = 1' \
+    'net.ipv6.conf.default.disable_ipv6 = 1' \
+    'net.ipv6.conf.eth0.disable_ipv6 = 1'; do
+    grep -Fx "$expected_line" <<< "$rootfs_config" >/dev/null
+done
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/passwd' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/clear' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/tput' >/dev/null
@@ -175,9 +210,9 @@ tar -tzf "$rootfs" | grep -Fx 'usr/bin/wget' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifconfig' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/crontab' >/dev/null
 tar -tzf "$rootfs" | grep -Fx 'usr/bin/tmux' >/dev/null
-tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,nodiratime,commit=600,errors=remount-ro 0 1' >/dev/null
+tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=ROOTFS_EMMC / ext4 defaults,noatime,data=ordered,commit=5,errors=remount-ro 0 1' >/dev/null
 tar -xOzf "$rootfs" etc/fstab | grep -Fx 'LABEL=BOOT_EMMC /boot vfat defaults,nofail 0 2' >/dev/null
-tar -xOzf "$rootfs" etc/shadow | awk -F: '$1 == "root" { found = 1; bad = ($3 != "0") } END { exit (found && !bad) ? 0 : 1 }'
+tar -xOzf "$rootfs" etc/shadow | awk -F: '$1 == "root" { found = 1; bad = ($3 == "0" || $3 == "") } END { exit (found && !bad) ? 0 : 1 }'
 python3 - "$rootfs" <<'PYEOF'
 import sys
 import tarfile
@@ -199,6 +234,8 @@ if missing:
 PYEOF
 tar -tzf "$rootfs" | grep -Fx 'usr/sbin/ifup' >/dev/null
 tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Fx 'BOOTPROTO=dhcp' >/dev/null
+tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Fx 'IPV6INIT=no' >/dev/null
+tar -xOzf "$rootfs" etc/systemd/network/99-default.link | grep -Fx 'AlternativeNamesPolicy=' >/dev/null
 if tar -xOzf "$rootfs" etc/sysconfig/network-scripts/ifcfg-eth0 | grep -Eq '^(UUID|HWADDR|IPADDR|PREFIX|GATEWAY)='; then
     echo 'ifcfg-eth0 中存在设备或网络专属配置' >&2
     exit 1
@@ -210,6 +247,7 @@ fi
 tar -tzf "$rootfs" | grep -Fx 'etc/systemd/system/multi-user.target.wants/NetworkManager.service' >/dev/null
 unzip -t "$boot_zip" >/dev/null
 unzip -p "$boot_zip" boot/uEnv.txt | grep "^FDT=/dtb/amlogic/$dtb_name\$" >/dev/null
+unzip -p "$boot_zip" boot/uEnv.txt | grep 'rootflags=data=ordered' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx "boot/dtb/amlogic/$dtb_name" >/dev/null
 dtb_count="$(unzip -Z1 "$boot_zip" | grep -c '\.dtb$' || true)"
 [[ "$dtb_count" -eq 1 ]] || { echo "boot 包 DTB 数量异常：$dtb_count" >&2; exit 1; }
@@ -221,8 +259,10 @@ unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_TCP_CONG_B
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_BBRPLUS=y' >/dev/null
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_DEFAULT_TCP_CONG="bbrplus"' >/dev/null
 unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_NET_SCH_FQ=y' >/dev/null
-unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_IPV6_SIT=m' >/dev/null
-unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx 'CONFIG_IPV6_TUNNEL=m' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx '# CONFIG_IPV6_SIT is not set' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx '# CONFIG_IPV6_TUNNEL is not set' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx '# CONFIG_IPV6_VTI is not set' >/dev/null
+unzip -p "$boot_zip" "boot/config-$kernel_variant" | grep -Fx '# CONFIG_IPV6_GRE is not set' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.ext' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/u-boot.emmc' >/dev/null
 unzip -Z1 "$boot_zip" | grep -Fx 'boot/e900v22c-u-boot.bin.sd.bin' >/dev/null

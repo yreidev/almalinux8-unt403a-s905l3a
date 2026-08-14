@@ -13,6 +13,6 @@ congestion-control callback signatures.
 
 Local config deltas from the ophub base:
 
-- `CONFIG_IPV6_SIT=m`、`CONFIG_IPV6_TUNNEL=m`（基线为 `y`）：改成模块后开机不再
-  自动创建 `sit0` / `ip6tnl0` 占位接口，需要隧道时 `modprobe sit` / `modprobe
-  ip6_tunnel` 即可。
+- `CONFIG_IPV6_SIT=n`、`CONFIG_IPV6_TUNNEL=n`（基线为 `y`）：关闭 IPv6 隧道驱动，
+  开机不会创建 `sit0` / `ip6tnl0` 占位接口。连带关闭 `IPV6_VTI`、`IPV6_GRE`，
+  避免它们通过 Kconfig 依赖重新启用 `IPV6_TUNNEL`。
